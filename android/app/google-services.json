@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "471955134815",
+    "project_id": "mynotes-manpro-27604",
+    "storage_bucket": "mynotes-manpro-27604.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471955134815:android:a322d2da18e41859783eea",
+        "android_client_info": {
+          "package_name": "com.example.mynotes_manpro_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3zaCaEmtO8li5efFgb_WWIDuos3dI2eo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471955134815:android:d4355d54c9ace4d1783eea",
+        "android_client_info": {
+          "package_name": "com.example.mynotes_phone"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3zaCaEmtO8li5efFgb_WWIDuos3dI2eo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
