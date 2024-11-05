@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -9,30 +12,43 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
   Future<void> _signIn() async {
+    final url = Uri.parse(
+        'http://10.0.2.2:5000/api/users/getByEmail/phone'); // Use this for Android Emulator
     try {
-      await _auth.signInWithEmailAndPassword(
-          email: _emailController.text, password: _passwordController.text);
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        print('No user found for that email.');
-      } else if (e.code == 'wrong-password') {
-        print('Wrong password provided for that user.');
+      final response = await http.post(
+        url,
+        body: {
+          'email': _emailController.text,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final user = jsonDecode(response.body);
+        await secureStorage.write(key: 'token', value: user['token']);
+        if (user['password'] == _passwordController.text) {
+          GoRouter.of(context).go('/home');
+        } else {
+          print('Invalid password');
+        }
       } else {
-        print(e.code);
+        print('Error: ${response.body}');
       }
+    } catch (e) {
+      print('Exception: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: Center(
-            child: Column(
+        body: SingleChildScrollView(
+            child: Center(
+                child: Column(
       mainAxisAlignment: MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -64,6 +80,6 @@ class _LoginState extends State<Login> {
               child: const Text('Sign In'),
             )),
       ],
-    )));
+    ))));
   }
 }

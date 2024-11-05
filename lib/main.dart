@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mynotes_phone/src/text_editor.dart';
 import 'src/splash.dart';
 import 'src/home.dart';
 import 'src/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,12 +20,12 @@ final _router = GoRouter(routes: [
   GoRoute(
       path: '/',
       builder: (context, state) {
-        return const SplashPage();
+        return const Home();
       },
       name: 'splash',
       routes: [
         GoRoute(
-            path: 'welcome',
+            path: 'home',
             builder: (context, state) {
               return const Home();
             }),
@@ -32,6 +34,13 @@ final _router = GoRouter(routes: [
             builder: (context, state) {
               return const Login();
             }),
+        GoRoute(
+          path: 'document/:id',
+          builder: (context, state) {
+            final id = state.pathParameters['id'];
+            return TextEditor(id: id);
+          },
+        ),
       ])
 ]);
 
