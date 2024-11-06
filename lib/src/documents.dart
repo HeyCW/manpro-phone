@@ -3,6 +3,8 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class DocumentsPage extends StatefulWidget {
   const DocumentsPage({super.key});
@@ -16,6 +18,8 @@ class _DocumentsPageState extends State<DocumentsPage> {
   late String token;
   List<dynamic> documents = [];
   List<QuillController> controllers = [];
+  String? email;
+  String? username;
 
   @override
   void initState() {
@@ -26,10 +30,20 @@ class _DocumentsPageState extends State<DocumentsPage> {
   Future<void> _initialize() async {
     await _loadToken(); // Tunggu hingga token selesai dimuat
     await _loadDocuments(); // Panggil setelah token berhasil dimuat
+    await _loadUsername(); // Panggil setelah token berhasil
+    await _loadEmail(); // Panggil setelah token berhasil
   }
 
   Future<void> _loadToken() async {
     token = await secureStorage.read(key: 'token') ?? '';
+  }
+
+  Future<void> _loadUsername() async {
+    username = await secureStorage.read(key: 'username') ?? '';
+  }
+
+  Future<void> _loadEmail() async {
+    email = await secureStorage.read(key: 'email') ?? '';
   }
 
   Future<void> _loadDocuments() async {
@@ -46,15 +60,53 @@ class _DocumentsPageState extends State<DocumentsPage> {
       if (response.statusCode == 200) {
         setState(() {
           documents = json.decode(response.body);
-          QuillController _controller = QuillController(
-            document: Document.fromJson(
-                documents[0]['data']['ops']), // "\n" is mandatory
-            selection: TextSelection.collapsed(offset: 0),
-          );
-          ;
-          _controller.readOnly = true;
-          // print(documents[0]['data']['ops']);
-          controllers = List.generate(documents.length, (index) => _controller);
+          for (int i = 0; i < documents.length; i++) {
+            // Cek apakah ada 'ops' di dalam 'data'
+            if (documents[i]['data'] is Map &&
+                documents[i]['data']['ops'] != null &&
+                documents[i]['data']['ops'] is List) {
+              // Tipe pertama: 'data' memiliki properti 'ops'
+              try {
+                // Buat QuillController untuk dokumen dengan 'ops'
+                QuillController controller = QuillController(
+                  document: Document.fromJson(documents[i]['data']['ops']),
+                  selection: const TextSelection.collapsed(offset: 0),
+                );
+                controllers.add(controller); // Tambahkan ke list controllers
+              } catch (e) {
+                print(
+                    'Error creating QuillController for document $i (ops): $e');
+                controllers.add(QuillController(
+                  document: Document(),
+                  selection: const TextSelection.collapsed(offset: 0),
+                ));
+              }
+            } else if (documents[i]['data'] is List) {
+              // Tipe kedua: 'data' langsung berupa array, tanpa 'ops'
+              try {
+                // Buat QuillController untuk dokumen tanpa 'ops'
+                QuillController controller = QuillController(
+                  document: Document.fromJson(documents[i]['data']),
+                  selection: const TextSelection.collapsed(offset: 0),
+                );
+                controllers.add(controller); // Tambahkan ke list controllers
+              } catch (e) {
+                print(
+                    'Error creating QuillController for document $i (direct data): $e');
+                controllers.add(QuillController(
+                  document: Document(),
+                  selection: const TextSelection.collapsed(offset: 0),
+                ));
+              }
+            } else {
+              // Jika formatnya tidak sesuai, tambahkan controller kosong
+              print('Invalid data format at index $i');
+              controllers.add(QuillController(
+                document: Document(),
+                selection: const TextSelection.collapsed(offset: 0),
+              ));
+            }
+          }
         });
       } else {
         print('Error: ${response.body}');
@@ -66,7 +118,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
 
   List<Widget> buildRows(List<dynamic> docs) {
     List<Widget> rows = [];
-    for (int i = 0; i < 2; i += 2) {
+    for (int i = 0; i < docs.length; i += 2) {
       rows.add(Row(
         children: [
           Expanded(
@@ -77,23 +129,22 @@ class _DocumentsPageState extends State<DocumentsPage> {
                 children: [
                   SizedBox(
                     height: 200,
-                    child: SingleChildScrollView(
-                      child: QuillEditor.basic(
-                        configurations:
-                            const QuillEditorConfigurations(autoFocus: false),
-                        controller: controllers[i + 1],
-                        focusNode: FocusNode(),
-                        scrollController: ScrollController(),
-                      ),
+                    child: QuillEditor.basic(
+                      configurations:
+                          const QuillEditorConfigurations(autoFocus: false),
+                      controller: controllers[
+                          i], // Gunakan controller yang sesuai untuk dokumen
+                      focusNode: FocusNode(),
+                      scrollController: ScrollController(),
                     ),
                   ),
-                  Text(
-                    docs[i]["name"],
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(docs[i]["name"],
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   Text(
                     docs[i]["owner"],
                     overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   ButtonTheme(
                       child: ElevatedButton(
@@ -115,19 +166,18 @@ class _DocumentsPageState extends State<DocumentsPage> {
                       child: QuillEditor.basic(
                         configurations:
                             const QuillEditorConfigurations(autoFocus: false),
-                        controller: controllers[i + 1],
+                        controller: controllers[i +
+                            1], // Gunakan controller yang sesuai untuk dokumen
                         focusNode: FocusNode(),
                         scrollController: ScrollController(),
                       ),
                     ),
-                    Text(
-                      docs[i + 1]["name"],
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      docs[i + 1]["owner"],
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(docs[i + 1]["name"],
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(docs[i + 1]["owner"],
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                     ButtonTheme(
                         child: ElevatedButton(
                             onPressed: () {}, child: Text("Open"))),
@@ -148,9 +198,9 @@ class _DocumentsPageState extends State<DocumentsPage> {
       child: Scaffold(
         backgroundColor: Colors.grey[200],
         appBar: AppBar(
-          title: const Center(
-            child: Text("Documents",
-                style: TextStyle(
+          title: Center(
+            child: Text("Welcome $username",
+                style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.bold),
@@ -158,7 +208,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
           ),
           backgroundColor: Colors.blue,
         ),
-        body: documents.isEmpty
+        body: documents.isEmpty || controllers.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 children: buildRows(documents),

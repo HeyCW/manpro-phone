@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -29,8 +31,11 @@ class _LoginState extends State<Login> {
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
-        await secureStorage.write(key: 'token', value: user['token']);
+
         if (user['password'] == _passwordController.text) {
+          await secureStorage.write(key: 'token', value: user['token']);
+          await secureStorage.write(key: 'email', value: user['email']);
+          await secureStorage.write(key: 'username', value: user['username']);
           GoRouter.of(context).go('/home');
         } else {
           print('Invalid password');

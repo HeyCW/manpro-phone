@@ -38,17 +38,11 @@ class _TextEditorState extends State<TextEditor> {
 
     _loadDocument();
 
-    // Listen for the document load response
     socket.on('load-document', (response) {
-      print("Received load-document response: $response");
-
-      // Ensure that response is as expected
       if (response != null && response is List && response.length >= 2) {
-        final documentContent =
-            response[0]; // Accessing the first item assuming it's a map
-        final documentName = response[1]; // Accessing the second item
+        final documentContent = response[0];
+        final documentName = response[1];
 
-        // Check if documentContent contains 'ops' key
         if (documentContent is Map && documentContent.containsKey('ops')) {
           setState(() {
             _controller = QuillController(
@@ -80,13 +74,30 @@ class _TextEditorState extends State<TextEditor> {
   }
 
   void _saveDocument() {
-    final delta = _controller.document.toDelta(); // Ambil delta dari dokumen
-    final jsonDelta = delta.toJson(); // Konversi delta menjadi JSON
+    final delta = _controller.document.toDelta();
+    final jsonDelta = delta.toJson();
+
+    final formattedData = {
+      'ops': jsonDelta.map((item) {
+        // Mengecek apakah item memiliki insert dan attributes
+        final result = {
+          'insert': item['insert'] ??
+              '' // Jika tidak ada insert, kirimkan string kosong
+        };
+
+        // Menambahkan atribut jika ada
+        if (item['attributes'] != null) {
+          result['attributes'] = item['attributes'];
+        }
+
+        return result;
+      }).toList()
+    };
 
     // Kirimkan objek JSON ke server
     socket.emit('save-document-phone', {
       'documentId': widget.id,
-      'data': jsonDelta, // Data yang sudah dikonversi ke JSON
+      'data': formattedData,
       'name': 'Document',
       'owner': 'Budi'
     });
@@ -94,22 +105,34 @@ class _TextEditorState extends State<TextEditor> {
 
   void _sendChanges() {
     if (!isRemoteUpdate) {
-      // Only send changes if not in a remote update
       final delta = _controller.document.toDelta();
       final jsonDelta = delta.toJson();
-      print(jsonDelta);
+      final formattedData = {
+        'ops': jsonDelta.map((item) {
+          // Mengecek apakah item memiliki insert dan attributes
+          final result = {
+            'insert': item['insert'] ??
+                '' // Jika tidak ada insert, kirimkan string kosong
+          };
+
+          // Menambahkan atribut jika ada
+          if (item['attributes'] != null) {
+            result['attributes'] = item['attributes'];
+          }
+
+          return result;
+        }).toList()
+      };
       socket.emit('send-changes-phone', {
         'documentId': widget.id,
-        'delta': jsonDelta,
+        'delta': formattedData,
       });
     }
   }
 
   void _receiveChanges() {
     socket.on('receive-changes', (response) {
-      isRemoteUpdate = true;
-      _loadDocument();
-      isRemoteUpdate = false;
+      
     });
   }
 

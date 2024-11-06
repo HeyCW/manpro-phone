@@ -47,7 +47,8 @@ dependencies:
   socket_io_client: ^3.0.0
   flutter_secure_storage: ^9.2.2
   uuid: ^4.4.2
-  quill_delta: ^3.0.0-nullsafety.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:
