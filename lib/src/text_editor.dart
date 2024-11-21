@@ -104,6 +104,7 @@ class _TextEditorState extends State<TextEditor> {
   }
 
   void _sendChanges() {
+    print(isRemoteUpdate);
     if (!isRemoteUpdate) {
       final delta = _controller.document.toDelta();
       final jsonDelta = delta.toJson();
@@ -123,6 +124,7 @@ class _TextEditorState extends State<TextEditor> {
           return result;
         }).toList()
       };
+      print('send-changes-phone');
       socket.emit('send-changes-phone', {
         'documentId': widget.id,
         'delta': formattedData,
@@ -132,7 +134,22 @@ class _TextEditorState extends State<TextEditor> {
 
   void _receiveChanges() {
     socket.on('receive-changes', (response) {
-      
+      final delta = response['ops'];
+      if (delta is List) {
+        setState(() {
+          isRemoteUpdate = true;
+          _controller = QuillController(
+              document: Document.fromJson(delta),
+              selection: const TextSelection.collapsed(offset: 0));
+
+          _controller.document.changes.listen((change) {
+            if (!isRemoteUpdate) {
+              _sendChanges();
+            }
+          });
+          isRemoteUpdate = false;
+        });
+      }
     });
   }
 
