@@ -13,7 +13,8 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   late PersistentTabController _controller;
-  var uuid = const Uuid();
+  String randomId = Uuid().v4();
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -24,7 +25,7 @@ class _HomeState extends State<Home> {
   List<Widget> _buildScreens() {
     return [
       const DocumentsPage(),
-      TextEditor(id: uuid.v4()),
+      TextEditor(id: randomId, key: ValueKey(randomId)),
       const Center(child: Text("Profile Screen")),
     ];
   }
@@ -52,6 +53,19 @@ class _HomeState extends State<Home> {
     ];
   }
 
+  void _onNavBarItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    // If you want to rerender the "Home" tab, you can add logic here.
+    if (_selectedIndex == 0) {
+      setState(() {
+        randomId = Uuid().v4();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PersistentTabView(
@@ -62,6 +76,7 @@ class _HomeState extends State<Home> {
       navBarStyle: NavBarStyle.style1,
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       backgroundColor: Colors.white,
+      onItemSelected: _onNavBarItemTapped,
     );
   }
 }

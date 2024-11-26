@@ -17,8 +17,9 @@ class _LoginState extends State<Login> {
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
   Future<void> _signIn() async {
-    final url = Uri.parse(
-        'http://10.0.2.2:5000/api/users/getByEmail/phone'); 
+    // print(_emailController.text);
+    // print(_passwordController.text);
+    final url = Uri.parse('http://10.0.2.2:5000/api/users/getByEmail/phone');
     try {
       final response = await http.post(
         url,
@@ -29,11 +30,10 @@ class _LoginState extends State<Login> {
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
-
         if (user['password'] == _passwordController.text) {
           await secureStorage.write(key: 'token', value: user['token']);
           await secureStorage.write(key: 'email', value: user['email']);
-          await secureStorage.write(key: 'username', value: user['username']);
+          await secureStorage.write(key: 'username', value: user['name']);
           GoRouter.of(context).go('/home');
         } else {
           print('Invalid password');

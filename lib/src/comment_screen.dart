@@ -5,8 +5,13 @@ import 'dart:convert';
 class CommentScreen extends StatefulWidget {
   final String noteId;
   final String token;
+  final String user;
 
-  const CommentScreen({super.key, required this.noteId, required this.token});
+  const CommentScreen(
+      {super.key,
+      required this.noteId,
+      required this.token,
+      required this.user});
 
   @override
   State<CommentScreen> createState() => _CommentScreenState();
@@ -137,8 +142,8 @@ class _CommentScreenState extends State<CommentScreen> {
                               final body = {
                                 'document_id': widget
                                     .noteId, // Menggunakan noteId dari widget
-                                'owner':
-                                    'owner', // Ganti dengan data pengguna yang sesuai
+                                'owner': widget
+                                    .user, // Ganti dengan data pengguna yang sesuai
                                 'comment': _commentController.text,
                               };
 

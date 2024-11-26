@@ -11,6 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
 
 class TextEditor extends StatefulWidget {
   final String? id;
@@ -25,8 +26,17 @@ class _TextEditorState extends State<TextEditor> {
   final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
   late QuillController _controller;
   late IO.Socket socket;
-  late Note _document;
+  late Note _document = Note(
+      id: '',
+      name: '',
+      publicAccess: '',
+      publicPermission: '',
+      owner: '',
+      readAccess: [],
+      writeAccess: []);
   late String token;
+  late String user;
+  late String email;
   Timer? _timer;
   bool isRemoteUpdate = false;
   final TextEditingController _namaDocument =
@@ -35,12 +45,17 @@ class _TextEditorState extends State<TextEditor> {
   String? selectedValue2 = "View";
   List<String> selectedPermissions = [];
   final TextEditingController _emailController = TextEditingController();
+  bool _isSocketInitialized = false;
+  BuildContext? _modalContext;
 
   void _openComment() {
     showModalBottomSheet(
-        context: context,
-        builder: (context) =>
-            CommentScreen(noteId: _document.id, token: token));
+      context: context,
+      builder: (context) {
+        _modalContext = context;
+        return CommentScreen(noteId: _document.id, token: token, user: user);
+      },
+    );
   }
 
   Future<void> _dialogBuilder(BuildContext context) {
@@ -369,15 +384,22 @@ class _TextEditorState extends State<TextEditor> {
   @override
   void initState() {
     super.initState();
-
     _initialize();
 
     _controller = QuillController.basic();
+    _controller.readOnly = true;
 
-    socket = IO.io('http://10.0.2.2:3001', <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': true,
-    });
+    if (!_isSocketInitialized) {
+      socket = IO.io('http://10.0.2.2:3001', <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': true,
+        'reconnect': true, // Aktifkan reconnect
+        'reconnectAttempts': 5, // Tentukan berapa kali mencoba reconnect
+        'reconnectDelay': 2000,
+      });
+
+      _isSocketInitialized = true;
+    }
 
     // _controller.addListener(() {
     //   final text = _controller.document.toPlainText();
@@ -399,11 +421,43 @@ class _TextEditorState extends State<TextEditor> {
               _controller = QuillController(
                   document: Document.fromJson(documentContent['ops']),
                   selection: const TextSelection.collapsed(offset: 0));
+
               _controller.document.changes.listen((change) {
                 if (!isRemoteUpdate) {
                   _sendChanges();
                 }
               });
+              if (_document.id == '') {
+                print("masuk1");
+                _controller.readOnly = false;
+              } else if (_document.owner == email) {
+                print("masuk2");
+                _controller.readOnly = false;
+              } else if (_document.publicAccess == "Anyone with the link" &&
+                  _document.publicPermission == "Editor") {
+                print("masuk3");
+                _controller.readOnly = false;
+              } else if (_document.publicAccess == "Anyone with the link" &&
+                  _document.publicPermission == "Viewer") {
+                if (_document.writeAccess.contains(user)) {
+                  print("masuk4");
+                  _controller.readOnly = false;
+                } else {
+                  print("masuk5");
+                  _controller.readOnly = true;
+                }
+              } else if (_document.publicAccess == "Restricted") {
+                if (_document.writeAccess.contains(user)) {
+                  print("masuk6");
+                  _controller.readOnly = false;
+                } else {
+                  print("masuk7");
+                  _controller.readOnly = true;
+                }
+              } else {
+                print("masuk8");
+                GoRouter.of(context).go('/home');
+              }
             });
           }
         } else {
@@ -414,9 +468,13 @@ class _TextEditorState extends State<TextEditor> {
       }
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _saveDocument();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      await _saveDocument();
       _receiveChanges();
+      if (_document.id == '') {
+        await _getDocumentFeature();
+        await _loadDocument();
+      }
     });
   }
 
@@ -424,14 +482,24 @@ class _TextEditorState extends State<TextEditor> {
     token = await secureStorage.read(key: 'token') ?? '';
   }
 
+  Future<void> _loadUser() async {
+    user = await secureStorage.read(key: 'username') ?? '';
+  }
+
+  Future<void> _loadEmail() async {
+    email = await secureStorage.read(key: 'email') ?? '';
+  }
+
   Future<void> _initialize() async {
     await _loadToken();
+    await _loadUser();
+    await _loadEmail();
     await _getDocumentFeature();
-    print(_document);
   }
 
   Future _getDocumentFeature() async {
     final url = Uri.parse('http://10.0.2.2:5000/api/notes/getNoteById');
+
     final body = jsonEncode({
       'id': widget.id,
     });
@@ -446,16 +514,18 @@ class _TextEditorState extends State<TextEditor> {
     );
 
     if (response.statusCode == 200) {
-      final responseJson = jsonDecode(response.body); // Decode JSON response
-      _document = Note.fromJson(responseJson['note']);
-      selectedValue = _document.publicAccess;
-      selectedValue2 = _document.publicPermission;
-      selectedPermissions = List<String>.from(List.filled(
-              _document.readAccess.length, 'Read') // Creates the initial list
-          )
-        ..addAll(List<String>.filled(_document.writeAccess.length,
-                'Write') // Adds the "Write" values
-            );
+      final responseJson = jsonDecode(response.body);
+      setState(() {
+        _document = Note.fromJson(responseJson['note']);
+        selectedValue = _document.publicAccess;
+        selectedValue2 = _document.publicPermission;
+        selectedPermissions = List<String>.from(List.filled(
+                _document.readAccess.length, 'Read') // Creates the initial list
+            )
+          ..addAll(List<String>.filled(_document.writeAccess.length,
+                  'Write') // Adds the "Write" values
+              );
+      });
     } else {
       print('Error: ${response.body}');
     }
@@ -466,17 +536,13 @@ class _TextEditorState extends State<TextEditor> {
     socket.emit('join-room', widget.id);
   }
 
-  void _saveDocument() {
+  Future<void> _saveDocument() async {
     final delta = _controller.document.toDelta();
     final jsonDelta = delta.toJson();
 
     final formattedData = {
       'ops': jsonDelta.map((item) {
-        // Mengecek apakah item memiliki insert dan attributes
-        final result = {
-          'insert': item['insert'] ??
-              '' // Jika tidak ada insert, kirimkan string kosong
-        };
+        final result = {'insert': item['insert'] ?? ''};
 
         // Menambahkan atribut jika ada
         if (item['attributes'] != null) {
@@ -492,7 +558,7 @@ class _TextEditorState extends State<TextEditor> {
       'documentId': widget.id,
       'data': formattedData,
       'name': _namaDocument.text,
-      'owner': 'Budi'
+      'owner': email,
     });
   }
 
@@ -550,7 +616,9 @@ class _TextEditorState extends State<TextEditor> {
   @override
   void dispose() {
     _timer?.cancel();
-    socket.dispose();
+    if (_modalContext != null) {
+      Navigator.pop(_modalContext!);
+    }
     super.dispose();
   }
 

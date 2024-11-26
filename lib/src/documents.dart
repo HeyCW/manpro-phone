@@ -27,10 +27,10 @@ class _DocumentsPageState extends State<DocumentsPage> {
   }
 
   Future<void> _initialize() async {
-    await _loadToken(); // Tunggu hingga token selesai dimuat
-    await _loadDocuments(); // Panggil setelah token berhasil dimuat
-    await _loadUsername(); // Panggil setelah token berhasil
-    await _loadEmail(); // Panggil setelah token berhasil
+    await _loadToken();
+    await _loadDocuments();
+    await _loadUsername();
+    await _loadEmail();
   }
 
   Future<void> _loadToken() async {
@@ -203,24 +203,48 @@ class _DocumentsPageState extends State<DocumentsPage> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: Colors.grey[200],
-        appBar: AppBar(
-          title: Center(
-            child: Text("Welcome $username",
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+          backgroundColor: Colors.grey[200],
+          appBar: AppBar(
+            title: Center(
+              child: Text("Welcome $username",
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
+            ),
+            backgroundColor: Colors.blue,
           ),
-          backgroundColor: Colors.blue,
-        ),
-        body: documents.isEmpty || controllers.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                children: buildRows(documents),
-              ),
-      ),
+          body: documents.isEmpty || controllers.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : Column(children: [
+                  const SizedBox(height: 20),
+                  TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                        ),
+                      ),
+                      onChanged: (value) async {
+                        await _loadDocuments();
+
+                        setState(() {
+                          documents = documents
+                              .where((doc) => doc['name']
+                                  .toString()
+                                  .toLowerCase()
+                                  .contains(value.toLowerCase()))
+                              .toList();
+                        });
+                      }),
+                  const SizedBox(height: 20),
+                  Expanded(
+                      child: ListView(
+                    children: buildRows(documents),
+                  ))
+                ])),
     );
   }
 }
