@@ -24,7 +24,7 @@ class _HomeState extends State<Home> {
   List<Widget> _buildScreens() {
     return [
       const DocumentsPage(),
-      TextEditor(id: "4ca8b0db-1091-413a-aa8a-1795bd7f1540"),
+      TextEditor(id: uuid.v4()),
       const Center(child: Text("Profile Screen")),
     ];
   }

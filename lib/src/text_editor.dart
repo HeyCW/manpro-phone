@@ -1,7 +1,16 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mynotes_phone/Model/Note.dart';
+import 'package:mynotes_phone/src/comment_screen.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
 class TextEditor extends StatefulWidget {
   final String? id;
@@ -13,14 +22,355 @@ class TextEditor extends StatefulWidget {
 }
 
 class _TextEditorState extends State<TextEditor> {
+  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
   late QuillController _controller;
   late IO.Socket socket;
+  late Note _document;
+  late String token;
   Timer? _timer;
   bool isRemoteUpdate = false;
+  final TextEditingController _namaDocument =
+      TextEditingController(text: 'Document');
+  String? selectedValue;
+  String? selectedValue2 = "View";
+  List<String> selectedPermissions = [];
+  final TextEditingController _emailController = TextEditingController();
+
+  void _openComment() {
+    showModalBottomSheet(
+        context: context,
+        builder: (context) =>
+            CommentScreen(noteId: _document.id, token: token));
+  }
+
+  Future<void> _dialogBuilder(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              title: Text("Bagikan " + " \"" + _namaDocument.text + "\""),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize
+                    .min, // Tambahkan ini agar konten tidak memanjang
+                children: <Widget>[
+                  Row(
+                    children: [
+                      Flexible(
+                        flex: 3,
+                        child: TextField(
+                          controller: _emailController,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: 'Email',
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          final url = Uri.parse(
+                              "http://10.0.2.2:5000/api/notes/addReadAccess");
+                          final body = jsonEncode({
+                            'id': widget.id,
+                            'email': _emailController.text,
+                          });
+
+                          http.post(
+                            url,
+                            headers: {
+                              'Authorization': 'Bearer $token',
+                              'Content-Type': 'application/json',
+                            },
+                            body: body,
+                          );
+
+                          _emailController.clear();
+                        },
+                        child: const Text('Kirim'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text("Orang yang memiliki akses",
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxHeight: 400,
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: Column(
+                          children: [
+                            // Iterate over _document.readAccess and create widgets
+                            for (int i = 0;
+                                i < _document.readAccess.length;
+                                i++)
+                              Container(
+                                width: double.infinity,
+                                height: 75,
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${_document.readAccess[i]}',
+                                      style: const TextStyle(
+                                          color: Colors.black, fontSize: 16),
+                                    ),
+                                    DropdownButton<String>(
+                                      value: 'Read',
+                                      hint: const Text("Select an option"),
+                                      onChanged: (String? newValue) {
+                                        final url = Uri.parse(
+                                            "http://10.0.2.2:5000/api/notes/addWriteAccess");
+                                        final body = jsonEncode({
+                                          'id': widget.id,
+                                          'email': _document.readAccess[i],
+                                        });
+
+                                        http.post(
+                                          url,
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: body,
+                                        );
+
+                                        final url2 = Uri.parse(
+                                            "http://10.0.2.2:5000/api/notes/removeReadAccess");
+                                        final body2 = jsonEncode({
+                                          'id': widget.id,
+                                          'email': _document.readAccess[i],
+                                        });
+
+                                        http.post(
+                                          url2,
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: body2,
+                                        );
+
+                                        setDialogState(() {
+                                          _document.writeAccess
+                                              .add(_document.readAccess[i]);
+                                          _document.readAccess.removeAt(i);
+                                        });
+                                      },
+                                      items: <String>['Read', 'Write']
+                                          .map<DropdownMenuItem<String>>(
+                                              (String value) {
+                                        return DropdownMenuItem<String>(
+                                          value: value,
+                                          child: Text(value),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            // Iterate over _document.writeAccess and create widgets
+                            for (int i = 0;
+                                i < _document.writeAccess.length;
+                                i++)
+                              Container(
+                                width: double.infinity,
+                                height: 75,
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${_document.writeAccess[i]}',
+                                      style: const TextStyle(
+                                          color: Colors.black, fontSize: 16),
+                                    ),
+                                    DropdownButton<String>(
+                                      value: 'Write',
+                                      hint: const Text("Select an option"),
+                                      onChanged: (String? newValue) {
+                                        final url = Uri.parse(
+                                            "http://10.0.2.2:5000/api/notes/addReadAccess");
+                                        final body = jsonEncode({
+                                          'id': widget.id,
+                                          'email': _document.writeAccess[i],
+                                        });
+
+                                        http.post(
+                                          url,
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: body,
+                                        );
+
+                                        final url2 = Uri.parse(
+                                            "http://10.0.2.2:5000/api/notes/removeWriteAccess");
+                                        final body2 = jsonEncode({
+                                          'id': widget.id,
+                                          'email': _document.writeAccess[i],
+                                        });
+
+                                        http.post(
+                                          url2,
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: body2,
+                                        );
+
+                                        setDialogState(() {
+                                          _document.readAccess
+                                              .add(_document.writeAccess[i]);
+                                          _document.writeAccess.removeAt(i);
+                                        });
+                                      },
+                                      items: <String>['Read', 'Write']
+                                          .map<DropdownMenuItem<String>>(
+                                              (String value) {
+                                        return DropdownMenuItem<String>(
+                                          value: value,
+                                          child: Text(value),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      )),
+                  const Text(
+                    "Akses",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                  ),
+                  DropdownButton<String>(
+                    value: selectedValue,
+                    hint: const Text("Select an option"),
+                    onChanged: (String? newValue) {
+                      setDialogState(() {
+                        selectedValue = newValue;
+                      });
+                      setState(() {
+                        selectedValue = newValue;
+                      });
+
+                      final url = Uri.parse(
+                          "http://10.0.2.2:5000/api/notes/changePublicAccess");
+                      final body = jsonEncode({
+                        'id': widget.id,
+                        'access': newValue,
+                      });
+
+                      http.post(
+                        url,
+                        headers: {
+                          'Authorization': 'Bearer $token',
+                          'Content-Type': 'application/json',
+                        },
+                        body: body,
+                      );
+                    },
+                    items: <String>['Restricted', 'Anyone with the link']
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          selectedValue == "Restricted"
+                              ? "Only people added can access"
+                              : "Anyone with the link can access",
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 10),
+                          overflow: TextOverflow
+                              .ellipsis, // Tambahkan jika teks terlalu panjang
+                        ),
+                      ),
+                      const SizedBox(width: 8), // Jarak antar elemen
+                      if (selectedValue != "Restricted")
+                        Expanded(
+                          flex: 1, // Proporsi lebih kecil untuk dropdown
+                          child: DropdownButton<String>(
+                            isExpanded:
+                                true, // Buat dropdown melebar sesuai container
+                            value: selectedValue2,
+                            hint: const Text("Select an option"),
+                            onChanged: (String? newValue) {
+                              setDialogState(() {
+                                selectedValue2 = newValue;
+                              });
+                              setState(() {
+                                selectedValue2 = newValue;
+                              });
+
+                              final url = Uri.parse(
+                                  "http://10.0.2.2:5000/api/notes/changePublicPermission");
+
+                              final body = jsonEncode({
+                                'id': widget.id,
+                                'public_permission': newValue,
+                              });
+
+                              http.post(
+                                url,
+                                headers: {
+                                  'Authorization': 'Bearer $token',
+                                  'Content-Type': 'application/json',
+                                },
+                                body: body,
+                              );
+                            },
+                            items: <String>['Viewer', 'Editor']
+                                .map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                    ],
+                  )
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  style: TextButton.styleFrom(
+                    textStyle: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  child: const Text('Ok'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+
+    _initialize();
 
     _controller = QuillController.basic();
 
@@ -42,18 +392,20 @@ class _TextEditorState extends State<TextEditor> {
       if (response != null && response is List && response.length >= 2) {
         final documentContent = response[0];
         final documentName = response[1];
-
+        _namaDocument.text = documentName;
         if (documentContent is Map && documentContent.containsKey('ops')) {
-          setState(() {
-            _controller = QuillController(
-                document: Document.fromJson(documentContent['ops']),
-                selection: const TextSelection.collapsed(offset: 0));
-            _controller.document.changes.listen((change) {
-              if (!isRemoteUpdate) {
-                _sendChanges();
-              }
+          if (mounted) {
+            setState(() {
+              _controller = QuillController(
+                  document: Document.fromJson(documentContent['ops']),
+                  selection: const TextSelection.collapsed(offset: 0));
+              _controller.document.changes.listen((change) {
+                if (!isRemoteUpdate) {
+                  _sendChanges();
+                }
+              });
             });
-          });
+          }
         } else {
           print("Invalid document content structure: $documentContent");
         }
@@ -66,6 +418,47 @@ class _TextEditorState extends State<TextEditor> {
       _saveDocument();
       _receiveChanges();
     });
+  }
+
+  Future<void> _loadToken() async {
+    token = await secureStorage.read(key: 'token') ?? '';
+  }
+
+  Future<void> _initialize() async {
+    await _loadToken();
+    await _getDocumentFeature();
+    print(_document);
+  }
+
+  Future _getDocumentFeature() async {
+    final url = Uri.parse('http://10.0.2.2:5000/api/notes/getNoteById');
+    final body = jsonEncode({
+      'id': widget.id,
+    });
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: body, // Sending the JSON-encoded body
+    );
+
+    if (response.statusCode == 200) {
+      final responseJson = jsonDecode(response.body); // Decode JSON response
+      _document = Note.fromJson(responseJson['note']);
+      selectedValue = _document.publicAccess;
+      selectedValue2 = _document.publicPermission;
+      selectedPermissions = List<String>.from(List.filled(
+              _document.readAccess.length, 'Read') // Creates the initial list
+          )
+        ..addAll(List<String>.filled(_document.writeAccess.length,
+                'Write') // Adds the "Write" values
+            );
+    } else {
+      print('Error: ${response.body}');
+    }
   }
 
   Future<void> _loadDocument() async {
@@ -98,13 +491,12 @@ class _TextEditorState extends State<TextEditor> {
     socket.emit('save-document-phone', {
       'documentId': widget.id,
       'data': formattedData,
-      'name': 'Document',
+      'name': _namaDocument.text,
       'owner': 'Budi'
     });
   }
 
   void _sendChanges() {
-    print(isRemoteUpdate);
     if (!isRemoteUpdate) {
       final delta = _controller.document.toDelta();
       final jsonDelta = delta.toJson();
@@ -136,19 +528,21 @@ class _TextEditorState extends State<TextEditor> {
     socket.on('receive-changes', (response) {
       final delta = response['ops'];
       if (delta is List) {
-        setState(() {
-          isRemoteUpdate = true;
-          _controller = QuillController(
-              document: Document.fromJson(delta),
-              selection: const TextSelection.collapsed(offset: 0));
+        if (mounted) {
+          setState(() {
+            isRemoteUpdate = true;
+            _controller = QuillController(
+                document: Document.fromJson(delta),
+                selection: const TextSelection.collapsed(offset: 0));
 
-          _controller.document.changes.listen((change) {
-            if (!isRemoteUpdate) {
-              _sendChanges();
-            }
+            _controller.document.changes.listen((change) {
+              if (!isRemoteUpdate) {
+                _sendChanges();
+              }
+            });
+            isRemoteUpdate = false;
           });
-          isRemoteUpdate = false;
-        });
+        }
       }
     });
   }
@@ -156,6 +550,7 @@ class _TextEditorState extends State<TextEditor> {
   @override
   void dispose() {
     _timer?.cancel();
+    socket.dispose();
     super.dispose();
   }
 
@@ -164,7 +559,50 @@ class _TextEditorState extends State<TextEditor> {
     return Scaffold(
         body: Column(children: [
       const SizedBox(
-        height: 50,
+        height: 70,
+      ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _namaDocument,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Name',
+              ),
+            ),
+          ),
+          SizedBox(width: 16), // Jarak antara tombol
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                GoRouter.of(context).go('/home');
+              },
+              child: Text('My Notes'),
+            ),
+          ),
+        ],
+      ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                _dialogBuilder(context);
+              },
+              child: Text('Share'),
+            ),
+          ),
+          SizedBox(width: 16), // Jarak antara tombol
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _openComment,
+              child: Text('Comment'),
+            ),
+          ),
+        ],
       ),
       QuillSimpleToolbar(
         controller: _controller,

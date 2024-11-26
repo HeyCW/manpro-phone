@@ -3,8 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:hive/hive.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -20,7 +18,7 @@ class _LoginState extends State<Login> {
 
   Future<void> _signIn() async {
     final url = Uri.parse(
-        'http://10.0.2.2:5000/api/users/getByEmail/phone'); // Use this for Android Emulator
+        'http://10.0.2.2:5000/api/users/getByEmail/phone'); 
     try {
       final response = await http.post(
         url,

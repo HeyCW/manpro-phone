@@ -3,8 +3,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'package:hive/hive.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:go_router/go_router.dart';
 
 class DocumentsPage extends StatefulWidget {
   const DocumentsPage({super.key});
@@ -148,7 +147,11 @@ class _DocumentsPageState extends State<DocumentsPage> {
                   ),
                   ButtonTheme(
                       child: ElevatedButton(
-                          onPressed: () {}, child: Text("Open"))),
+                          onPressed: () {
+                            GoRouter.of(context)
+                                .go('/document/${docs[i]['_id']}');
+                          },
+                          child: Text("Open"))),
                 ],
               ),
             ),
@@ -180,7 +183,11 @@ class _DocumentsPageState extends State<DocumentsPage> {
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     ButtonTheme(
                         child: ElevatedButton(
-                            onPressed: () {}, child: Text("Open"))),
+                            onPressed: () {
+                              GoRouter.of(context)
+                                  .go('/document/${docs[i + 1]['_id']}');
+                            },
+                            child: Text("Open"))),
                   ],
                 ),
               ),
